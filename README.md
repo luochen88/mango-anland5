@@ -4,6 +4,38 @@
 
 This repository pins the four public `anland5` branches that make up the Mango native Anland 5 stack. The components are included as Git submodules so a checkout records the exact commits known to build together.
 
+![Mango Anland 5 desktop and fastfetch](Screenshot_2026-10-05-22-44-32-28_048d46691f7e6d293bbd6f982d3d2551.jpg)
+
+## Attribution and scope
+
+Thanks to the original [Mango](https://github.com/mangowm/mango) and [Anland](https://github.com/SuperTurtleDev/anland) projects. This repository is a downstream integration snapshot for running Mango through Anland; it is not an upstream replacement for either project.
+
+Most integration code in these `anland5` branches was written with AI assistance. Treat it as experimental integration code: review the diffs, rebuild locally, and keep the component repositories as the source of truth.
+
+Reproducibility is not guaranteed. This case has only been reported working on a Lenovo Xiaoxin Pad Pro GT running Debian 13. The reported working devices/features are touch, mouse, touchpad, speakers, microphone, keyboard, and bidirectional clipboard.
+
+Recommended reading before building or running:
+
+- [Anland user guide](https://github.com/SuperTurtleDev/anland/blob/legacy/doc/UserManual/anland_guide.md)
+- [Mango documentation](https://mangowm.github.io/docs/installation)
+- [Droidspaces USB Manager notes](https://github.com/KDJCPM/Droidspaces-rootfs-KDE-builder/blob/main/README_english.md#droidspaces-usb-manager)
+
+Install the Mesa driver stack that matches your device GPU before testing. On the tested Qualcomm/Adreno setup, use a Mesa build with a GPU-matched Freedreno OpenGL driver; use Zink only with a compatible Vulkan driver because Zink implements OpenGL on top of Vulkan. Point Mango/Anland at the working render node.
+
+## Required build dependencies
+
+Install the build tools and runtime development packages required by all submodules before following the build order below. Package names vary by distribution; the stack needs at least:
+
+- C compiler, C++ compiler, `pkg-config`, `git`, `meson`, `ninja-build`, `cmake`
+- Wayland, wayland-protocols, xkbcommon, pixman, libdrm, GBM/EGL/GLESv2
+- libinput, udev/libudev, libseat, hwdata, libdisplay-info, libliftoff where available
+- libpcre2-8, libcjson, and pangocairo for Mango
+- PipeWire development files for Anland audio support
+- Xwayland, xcb, xcb-icccm, and xcb-randr development files when building Mango with `-Dxwayland=enabled`
+
+Install the matching Mesa runtime and development packages for your GPU. If the renderer falls back to software unexpectedly, fix the Mesa/DRM render-node setup before treating Mango or Anland as broken.
+
+
 ## Components
 
 | Build order | Submodule | Branch | Pinned commit | Purpose |
@@ -156,7 +188,7 @@ toggle    -> 80 1
 mango 0.17.5(3b119a23)
 ```
 
-A runtime smoke with `/run/display.sock` and `/dev/dri/renderD128` present started Mango with the service-equivalent environment and kept it alive until timeout. Android-side visual output, touch, keyboard, pointer, clipboard, volume observation, and reconnect behavior require manual verification on the Android consumer surface.
+A runtime smoke with `/run/display.sock` and `/dev/dri/renderD128` present started Mango with the service-equivalent environment and kept it alive until timeout. The Lenovo Xiaoxin Pad Pro GT report above says Android-side visual output, touch, mouse, touchpad, speakers, microphone, keyboard, and bidirectional clipboard worked on Debian 13; those Android-side behaviors were not independently re-tested as part of this repository snapshot.
 
 ## Repository policy
 

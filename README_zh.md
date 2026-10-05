@@ -4,6 +4,38 @@
 
 本仓库固定组成 Mango 原生 Anland 5 技术栈的 4 个公开 `anland5` 分支。各组件以 Git submodule 形式集成，因此一次检出会记录已知可一起构建的精确提交。
 
+![Mango Anland 5 桌面和 fastfetch](Screenshot_2026-10-05-22-44-32-28_048d46691f7e6d293bbd6f982d3d2551.jpg)
+
+## 致谢和范围
+
+感谢原作 [Mango](https://github.com/mangowm/mango) 和 [Anland](https://github.com/SuperTurtleDev/anland) 项目。本仓库只是用于通过 Anland 运行 Mango 的下游集成快照，不替代任何上游项目。
+
+这些 `anland5` 分支中的大部分集成代码由 AI 辅助编写。请把它当作实验性集成代码处理：自行审查 diff、本地重新构建，并以各组件仓库为事实来源。
+
+不保证可复现。本案例目前只报告在 Lenovo Xiaoxin Pad Pro GT、Debian 13 系统上实验通过。报告显示可正常使用的设备/功能包括：触摸、鼠标、触控板、音响、麦克风、键盘和双向剪贴板。
+
+构建或运行前建议先阅读：
+
+- [Anland 新手使用教程](https://github.com/SuperTurtleDev/anland/blob/legacy/doc/UserManual/anland_guide.md)
+- [Mango 文档](https://mangowm.github.io/docs/installation)
+- [Droidspaces USB Manager 说明](https://github.com/KDJCPM/Droidspaces-rootfs-KDE-builder/blob/main/README_english.md#droidspaces-usb-manager)
+
+测试前请安装与你设备 GPU 匹配的 Mesa 驱动栈。在已测试的 Qualcomm/Adreno 环境中，请使用带 GPU 匹配 Freedreno OpenGL 驱动的 Mesa 构建；只有存在兼容 Vulkan 驱动时才使用 Zink，因为 Zink 是基于 Vulkan 实现 OpenGL。请让 Mango/Anland 指向可工作的 render node。
+
+## 构建依赖
+
+按下面的构建顺序操作前，请先安装所有 submodule 需要的构建工具和运行时开发包。不同发行版的软件包名不同；这个技术栈至少需要：
+
+- C 编译器、C++ 编译器、`pkg-config`、`git`、`meson`、`ninja-build`、`cmake`
+- Wayland、wayland-protocols、xkbcommon、pixman、libdrm、GBM/EGL/GLESv2
+- libinput、udev/libudev、libseat、hwdata、libdisplay-info、libliftoff（可用时）
+- Mango 需要 libpcre2-8、libcjson 和 pangocairo
+- Anland 音频支持需要 PipeWire 开发文件
+- 使用 `-Dxwayland=enabled` 构建 Mango 时需要 Xwayland、xcb、xcb-icccm 和 xcb-randr 开发文件
+
+请安装与你 GPU 匹配的 Mesa 运行时和开发包。如果渲染器意外回落到软件渲染，应先修复 Mesa/DRM render node 配置，再判断 Mango 或 Anland 是否有问题。
+
+
 ## 组件
 
 | 构建顺序 | Submodule | 分支 | 固定提交 | 用途 |
@@ -156,7 +188,7 @@ toggle    -> 80 1
 mango 0.17.5(3b119a23)
 ```
 
-当 `/run/display.sock` 和 `/dev/dri/renderD128` 存在时，使用等价于 service 的环境变量启动 Mango runtime smoke，进程保持运行直到 timeout。Android 端画面、触摸、键盘、指针、剪贴板、音量观察和断线重连行为需要在 Android consumer 画面上人工验证。
+当 `/run/display.sock` 和 `/dev/dri/renderD128` 存在时，使用等价于 service 的环境变量启动 Mango runtime smoke，进程保持运行直到 timeout。上文的 Lenovo Xiaoxin Pad Pro GT 报告显示 Android 端画面、触摸、鼠标、触控板、音响、麦克风、键盘和双向剪贴板在 Debian 13 上可用；这些 Android 端行为并未作为本仓库快照的一部分被独立重新测试。
 
 ## 仓库策略
 
