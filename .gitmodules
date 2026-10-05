@@ -1,0 +1,16 @@
+[submodule "wlroots"]
+	path = wlroots
+	url = https://github.com/luochen88/wlroots.git
+	branch = anland5
+[submodule "scenefx"]
+	path = scenefx
+	url = https://github.com/luochen88/scenefx.git
+	branch = anland5
+[submodule "anland"]
+	path = anland
+	url = https://github.com/luochen88/anland.git
+	branch = anland5
+[submodule "mango"]
+	path = mango
+	url = https://github.com/luochen88/mango.git
+	branch = anland5
