@@ -1,5 +1,7 @@
 # Mango Anland 5 stack
 
+[中文](README_zh.md)
+
 This repository pins the four public `anland5` branches that make up the Mango native Anland 5 stack. The components are included as Git submodules so a checkout records the exact commits known to build together.
 
 ## Components
