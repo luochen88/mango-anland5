@@ -40,10 +40,10 @@
 
 | 构建顺序 | Submodule | 分支 | 固定提交 | 用途 |
 |----------|-----------|------|----------|------|
-| 1 | [`wlroots`](wlroots/) | `anland5` | `d57826345bfc9e39694c7d2fb8ea106a1c8fd273` | 基于 wlroots 0.20.2，加入 Mango Anland 后端用于消费者管理 buffer 的外部 swapchain API。 |
-| 2 | [`scenefx`](scenefx/) | `anland5` | `3e73e479160069b6444a6011057a6cd7403ac9f0` | SceneFX 0.5，基于上面的 wlroots 分支构建，并保留 GBM 失败时的真实错误诊断。 |
-| 3 | [`anland`](anland/) | `anland5` | `6803932abb6f4cb191a461775d688d93298e6e6d` | Anland V3 producer 库，安装为 `display-producer` 5.0.0。 |
-| 4 | [`mango`](mango/) | `anland5` | `91acc518688a4db979d05771d34dffec2be6d744` | Mango 0.17.5，包含原生 Anland 后端、会话脚本和运行时音量控制。 |
+| 1 | [`wlroots`](wlroots/) | `anland5` | `f2ff3e6c040f474ca71e8a5639997934f7a99142` | 基于 wlroots 0.20.2，加入 Mango Anland 后端用于消费者管理 buffer 的外部 swapchain API，并打包为 `libwlroots-0.20`。 |
+| 2 | [`scenefx`](scenefx/) | `anland5` | `612c23fa80106ae0968a417ac711f2e4e8b4c9ef` | SceneFX 0.5，基于上面的 wlroots 分支构建，并打包为 `libscenefx-0.5-0`。 |
+| 3 | [`anland`](anland/) | `anland5` | `fe7b844dbde5eb91fac8af8b19f28e54f9cf1f0b` | Anland producer 库，通过 `display-producer` 5.0.0 导出 legacy facade。 |
+| 4 | [`mango`](mango/) | `anland5` | `3ac767b9a707d7e14038be81fd616a95c50df395` | Mango 0.17.5，包含原生 Anland 后端、会话脚本、运行时音量控制和确定性的 Debian 包版本。 |
 
 上游仓库：
 
@@ -82,12 +82,35 @@ git commit -m "chore: update Mango Anland 5 stack pins"
 
 ## 构建和安装
 
-安装前缀为 `/usr/local`，与各公开分支文档一致。必须按依赖顺序构建和安装。
+必须按依赖顺序构建和安装。Debian 打包使用 `/usr` 和主机 multiarch libdir；手动本地安装可以使用 `/usr/local`，但每个组件的 `PKG_CONFIG_PATH` 和 `LD_LIBRARY_PATH` 必须指向同一个前缀。
+
+### Debian 包元数据
+
+每个 submodule 都包含固定 ABI 对应的 Debian packaging：
+
+| Submodule | Source package | Runtime package | Development package |
+|-----------|----------------|-----------------|---------------------|
+| `wlroots` | `wlroots` | `libwlroots-0.20` | `libwlroots-0.20-dev` |
+| `scenefx` | `scenefx` | `libscenefx-0.5-0` | `libscenefx-0.5-dev` |
+| `anland` | `anland` | `libdisplay-producer5` | `libdisplay-producer-dev` |
+| `mango` | `mango` | `mango-anland5` | — |
+
+按相同顺序构建包。`scenefx` 依赖固定版本的 `libwlroots-0.20-dev`；`mango-anland5` 依赖固定版本的 wlroots、SceneFX 和 Anland 开发包。
 
 ### 1. wlroots
 
 ```sh
-meson setup wlroots/build --prefix=/usr/local --buildtype=debugoptimized
+arch=$(dpkg-architecture -qDEB_HOST_MULTIARCH)
+meson setup wlroots/build --prefix=/usr --libdir="lib/$arch" \
+  -Dbackends=drm,libinput,x11 \
+  -Drenderers=gles2 \
+  -Dallocators=gbm,udmabuf \
+  -Dsession=enabled \
+  -Dxwayland=enabled \
+  -Dexamples=false \
+  -Dcolor-management=disabled \
+  -Dlibliftoff=enabled \
+  -Dxcb-errors=enabled
 meson compile -C wlroots/build
 sudo meson install -C wlroots/build
 ```
@@ -95,7 +118,12 @@ sudo meson install -C wlroots/build
 ### 2. SceneFX
 
 ```sh
-meson setup scenefx/build --prefix=/usr/local --buildtype=debugoptimized
+arch=$(dpkg-architecture -qDEB_HOST_MULTIARCH)
+meson setup scenefx/build --prefix=/usr --libdir="lib/$arch" \
+  -Dexamples=false \
+  -Drenderers=gles2 \
+  -Dtracy_enable=false \
+  -Dcolor-management=disabled
 meson compile -C scenefx/build
 sudo meson install -C scenefx/build
 ```
@@ -103,9 +131,11 @@ sudo meson install -C scenefx/build
 ### 3. Anland producer 库
 
 ```sh
-cmake -S anland -B anland/build \
+arch=$(dpkg-architecture -qDEB_HOST_MULTIARCH)
+cmake -S anland -B anland/build -G Ninja \
   -DCMAKE_BUILD_TYPE=Release \
-  -DCMAKE_INSTALL_PREFIX=/usr/local
+  -DCMAKE_INSTALL_PREFIX=/usr \
+  -DCMAKE_INSTALL_LIBDIR="lib/$arch"
 cmake --build anland/build --parallel
 sudo cmake --install anland/build
 pkg-config --modversion display-producer
@@ -120,7 +150,11 @@ pkg-config --modversion display-producer
 ### 4. Mango
 
 ```sh
-meson setup mango/build -Danland=enabled -Dxwayland=enabled --prefix=/usr/local --buildtype=debugoptimized
+arch=$(dpkg-architecture -qDEB_HOST_MULTIARCH)
+meson setup mango/build --prefix=/usr --libdir="lib/$arch" \
+  -Danland=enabled \
+  -Dxwayland=enabled \
+  -Dversion_suffix=release
 meson compile -C mango/build
 sudo meson install -C mango/build
 ```
@@ -155,13 +189,21 @@ anland-volume.sh {get|up|down|toggle|set <0-150>}
 
 ## 此快照使用的验证
 
-固定提交已在本地通过以下命令检查：
+固定提交已在本地通过 `/tmp/anland-stack-stage` 中的干净 staged install 检查：
 
 ```sh
-meson compile -C wlroots/build-anland5
-meson compile -C scenefx/build-anland5
-cmake --build anland/build-anland5 --parallel "$(nproc)"
-meson compile -C mango/build-anland5
+meson setup /tmp/stage-wlroots wlroots --prefix=/usr --libdir=lib/$(dpkg-architecture -qDEB_HOST_MULTIARCH) -Dbackends=drm,libinput,x11 -Drenderers=gles2 -Dallocators=gbm,udmabuf -Dsession=enabled -Dxwayland=enabled -Dexamples=false -Dcolor-management=disabled -Dlibliftoff=enabled -Dxcb-errors=enabled
+meson compile -C /tmp/stage-wlroots
+DESTDIR=/tmp/anland-stack-stage meson install -C /tmp/stage-wlroots
+meson setup /tmp/stage-scenefx scenefx --prefix=/usr --libdir=lib/$(dpkg-architecture -qDEB_HOST_MULTIARCH) -Dexamples=false -Drenderers=gles2 -Dtracy_enable=false -Dcolor-management=disabled
+meson compile -C /tmp/stage-scenefx
+DESTDIR=/tmp/anland-stack-stage meson install -C /tmp/stage-scenefx
+cmake -S anland -B /tmp/stage-anland -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr -DCMAKE_INSTALL_LIBDIR=lib/$(dpkg-architecture -qDEB_HOST_MULTIARCH)
+cmake --build /tmp/stage-anland --parallel "$(nproc)"
+DESTDIR=/tmp/anland-stack-stage cmake --install /tmp/stage-anland
+meson setup /tmp/stage-mango mango --prefix=/usr --libdir=lib/$(dpkg-architecture -qDEB_HOST_MULTIARCH) -Danland=enabled -Dxwayland=enabled -Dversion_suffix=release
+meson compile -C /tmp/stage-mango
+DESTDIR=/tmp/anland-stack-stage meson install -C /tmp/stage-mango
 ```
 
 额外 smoke 检查：
@@ -177,18 +219,20 @@ sh -n mango/scripts/mango-anland mango/scripts/anland-volume.sh
 使用临时 `XDG_RUNTIME_DIR` 运行 `anland-volume.sh` 的结果：
 
 ```text
-get       -> 100 0
-set 80    -> 80 0
-toggle    -> 80 1
+get -> 100 0
+set 80 -> 80 0
+toggle -> 80 1
 ```
 
-`mango/build-anland5/mango -v` 返回：
+`/tmp/anland-stack-stage/usr/bin/mango -v` 返回：
 
 ```text
-mango 0.17.5(3b119a23)
+mango 0.17.5(release)
 ```
 
-当 `/run/display.sock` 和 `/dev/dri/renderD128` 存在时，使用等价于 service 的环境变量启动 Mango runtime smoke，进程保持运行直到 timeout。上文的 Lenovo Xiaoxin Pad Pro GT 报告显示 Android 端画面、触摸、鼠标、触控板、音响、麦克风、键盘和双向剪贴板在 Debian 13 上可用；这些 Android 端行为并未作为本仓库快照的一部分被独立重新测试。
+当 `/run/display.sock` 和 `/dev/dri/renderD128` 存在时，使用等价于 service 的环境变量启动 Mango runtime smoke，进程保持运行直到 timeout。本地 smoke 日志只包含 Xwayland 显示 socket 已被占用警告和缺少 user bus 的消息。上文的 Lenovo Xiaoxin Pad Pro GT 报告显示 Android 端画面、触摸、鼠标、触控板、音响、麦克风、键盘和双向剪贴板在 Debian 13 上可用；这些 Android 端行为并未作为本仓库快照的一部分被独立重新测试。
+
+`dpkg-checkbuilddeps` 能解析全部 4 个包。本工作站缺少 `debhelper-compat (= 13)` 和刚新增打包的固定版本开发包，所以没有在这里运行完整 `.deb` 构建。
 
 ## 仓库策略
 

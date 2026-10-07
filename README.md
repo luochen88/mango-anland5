@@ -40,10 +40,10 @@ Install the matching Mesa runtime and development packages for your GPU. If the 
 
 | Build order | Submodule | Branch | Pinned commit | Purpose |
 |-------------|-----------|--------|---------------|---------|
-| 1 | [`wlroots`](wlroots/) | `anland5` | `d57826345bfc9e39694c7d2fb8ea106a1c8fd273` | wlroots 0.20.2 with the external swapchain API Mango uses for Anland consumer-owned buffers. |
-| 2 | [`scenefx`](scenefx/) | `anland5` | `3e73e479160069b6444a6011057a6cd7403ac9f0` | SceneFX 0.5 built against the wlroots branch above, with GBM failure diagnostics preserved. |
-| 3 | [`anland`](anland/) | `anland5` | `6803932abb6f4cb191a461775d688d93298e6e6d` | Anland V3 producer library packaged as `display-producer` version 5.0.0. |
-| 4 | [`mango`](mango/) | `anland5` | `91acc518688a4db979d05771d34dffec2be6d744` | Mango 0.17.5 with the native Anland backend, session scripts, and runtime volume control. |
+| 1 | [`wlroots`](wlroots/) | `anland5` | `f2ff3e6c040f474ca71e8a5639997934f7a99142` | wlroots 0.20.2 with the external swapchain API Mango uses for Anland consumer-owned buffers, packaged as `libwlroots-0.20`. |
+| 2 | [`scenefx`](scenefx/) | `anland5` | `612c23fa80106ae0968a417ac711f2e4e8b4c9ef` | SceneFX 0.5 built against the wlroots branch above and packaged as `libscenefx-0.5-0`. |
+| 3 | [`anland`](anland/) | `anland5` | `fe7b844dbde5eb91fac8af8b19f28e54f9cf1f0b` | Anland producer library with the legacy facade exported through `display-producer` version 5.0.0. |
+| 4 | [`mango`](mango/) | `anland5` | `3ac767b9a707d7e14038be81fd616a95c50df395` | Mango 0.17.5 with the native Anland backend, session scripts, runtime volume control, and deterministic Debian package versioning. |
 
 Upstream repositories:
 
@@ -82,12 +82,35 @@ git commit -m "chore: update Mango Anland 5 stack pins"
 
 ## Build and install
 
-The install prefix is `/usr/local`, matching the published branch documentation. Build and install in dependency order.
+Build and install in dependency order. The Debian packaging uses `/usr` and the host multiarch libdir; manual local installs may use `/usr/local` if `PKG_CONFIG_PATH` and `LD_LIBRARY_PATH` point at the same prefix for every component.
+
+### Debian package metadata
+
+Each submodule contains Debian packaging for the pinned ABI:
+
+| Submodule | Source package | Runtime package | Development package |
+|-----------|----------------|-----------------|---------------------|
+| `wlroots` | `wlroots` | `libwlroots-0.20` | `libwlroots-0.20-dev` |
+| `scenefx` | `scenefx` | `libscenefx-0.5-0` | `libscenefx-0.5-dev` |
+| `anland` | `anland` | `libdisplay-producer5` | `libdisplay-producer-dev` |
+| `mango` | `mango` | `mango-anland5` | — |
+
+Build packages in the same order. `scenefx` build-depends on the pinned `libwlroots-0.20-dev`; `mango-anland5` build-depends on the pinned wlroots, SceneFX, and Anland development packages.
 
 ### 1. wlroots
 
 ```sh
-meson setup wlroots/build --prefix=/usr/local --buildtype=debugoptimized
+arch=$(dpkg-architecture -qDEB_HOST_MULTIARCH)
+meson setup wlroots/build --prefix=/usr --libdir="lib/$arch" \
+  -Dbackends=drm,libinput,x11 \
+  -Drenderers=gles2 \
+  -Dallocators=gbm,udmabuf \
+  -Dsession=enabled \
+  -Dxwayland=enabled \
+  -Dexamples=false \
+  -Dcolor-management=disabled \
+  -Dlibliftoff=enabled \
+  -Dxcb-errors=enabled
 meson compile -C wlroots/build
 sudo meson install -C wlroots/build
 ```
@@ -95,7 +118,12 @@ sudo meson install -C wlroots/build
 ### 2. SceneFX
 
 ```sh
-meson setup scenefx/build --prefix=/usr/local --buildtype=debugoptimized
+arch=$(dpkg-architecture -qDEB_HOST_MULTIARCH)
+meson setup scenefx/build --prefix=/usr --libdir="lib/$arch" \
+  -Dexamples=false \
+  -Drenderers=gles2 \
+  -Dtracy_enable=false \
+  -Dcolor-management=disabled
 meson compile -C scenefx/build
 sudo meson install -C scenefx/build
 ```
@@ -103,9 +131,11 @@ sudo meson install -C scenefx/build
 ### 3. Anland producer library
 
 ```sh
-cmake -S anland -B anland/build \
+arch=$(dpkg-architecture -qDEB_HOST_MULTIARCH)
+cmake -S anland -B anland/build -G Ninja \
   -DCMAKE_BUILD_TYPE=Release \
-  -DCMAKE_INSTALL_PREFIX=/usr/local
+  -DCMAKE_INSTALL_PREFIX=/usr \
+  -DCMAKE_INSTALL_LIBDIR="lib/$arch"
 cmake --build anland/build --parallel
 sudo cmake --install anland/build
 pkg-config --modversion display-producer
@@ -120,7 +150,11 @@ Expected `pkg-config --modversion display-producer` output:
 ### 4. Mango
 
 ```sh
-meson setup mango/build -Danland=enabled -Dxwayland=enabled --prefix=/usr/local --buildtype=debugoptimized
+arch=$(dpkg-architecture -qDEB_HOST_MULTIARCH)
+meson setup mango/build --prefix=/usr --libdir="lib/$arch" \
+  -Danland=enabled \
+  -Dxwayland=enabled \
+  -Dversion_suffix=release
 meson compile -C mango/build
 sudo meson install -C mango/build
 ```
@@ -155,13 +189,21 @@ The state file is `$XDG_RUNTIME_DIR/anland-volume-state`; default state is `100 
 
 ## Verification used for this snapshot
 
-The pinned commits were checked locally with:
+The pinned commits were checked locally with a clean staged install under `/tmp/anland-stack-stage`:
 
 ```sh
-meson compile -C wlroots/build-anland5
-meson compile -C scenefx/build-anland5
-cmake --build anland/build-anland5 --parallel "$(nproc)"
-meson compile -C mango/build-anland5
+meson setup /tmp/stage-wlroots wlroots --prefix=/usr --libdir=lib/$(dpkg-architecture -qDEB_HOST_MULTIARCH) -Dbackends=drm,libinput,x11 -Drenderers=gles2 -Dallocators=gbm,udmabuf -Dsession=enabled -Dxwayland=enabled -Dexamples=false -Dcolor-management=disabled -Dlibliftoff=enabled -Dxcb-errors=enabled
+meson compile -C /tmp/stage-wlroots
+DESTDIR=/tmp/anland-stack-stage meson install -C /tmp/stage-wlroots
+meson setup /tmp/stage-scenefx scenefx --prefix=/usr --libdir=lib/$(dpkg-architecture -qDEB_HOST_MULTIARCH) -Dexamples=false -Drenderers=gles2 -Dtracy_enable=false -Dcolor-management=disabled
+meson compile -C /tmp/stage-scenefx
+DESTDIR=/tmp/anland-stack-stage meson install -C /tmp/stage-scenefx
+cmake -S anland -B /tmp/stage-anland -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr -DCMAKE_INSTALL_LIBDIR=lib/$(dpkg-architecture -qDEB_HOST_MULTIARCH)
+cmake --build /tmp/stage-anland --parallel "$(nproc)"
+DESTDIR=/tmp/anland-stack-stage cmake --install /tmp/stage-anland
+meson setup /tmp/stage-mango mango --prefix=/usr --libdir=lib/$(dpkg-architecture -qDEB_HOST_MULTIARCH) -Danland=enabled -Dxwayland=enabled -Dversion_suffix=release
+meson compile -C /tmp/stage-mango
+DESTDIR=/tmp/anland-stack-stage meson install -C /tmp/stage-mango
 ```
 
 Additional smoke checks:
@@ -177,18 +219,20 @@ sh -n mango/scripts/mango-anland mango/scripts/anland-volume.sh
 `anland-volume.sh` with a temporary `XDG_RUNTIME_DIR` returned:
 
 ```text
-get       -> 100 0
-set 80    -> 80 0
-toggle    -> 80 1
+get -> 100 0
+set 80 -> 80 0
+toggle -> 80 1
 ```
 
-`mango/build-anland5/mango -v` returned:
+`/tmp/anland-stack-stage/usr/bin/mango -v` returned:
 
 ```text
-mango 0.17.5(3b119a23)
+mango 0.17.5(release)
 ```
 
-A runtime smoke with `/run/display.sock` and `/dev/dri/renderD128` present started Mango with the service-equivalent environment and kept it alive until timeout. The Lenovo Xiaoxin Pad Pro GT report above says Android-side visual output, touch, mouse, touchpad, speakers, microphone, keyboard, and bidirectional clipboard worked on Debian 13; those Android-side behaviors were not independently re-tested as part of this repository snapshot.
+A runtime smoke with `/run/display.sock` and `/dev/dri/renderD128` present started Mango with the service-equivalent environment and kept it alive until timeout. The local smoke log contained only an already-used Xwayland display socket warning and missing user-bus messages. The Lenovo Xiaoxin Pad Pro GT report above says Android-side visual output, touch, mouse, touchpad, speakers, microphone, keyboard, and bidirectional clipboard worked on Debian 13; those Android-side behaviors were not independently re-tested as part of this repository snapshot.
+
+`dpkg-checkbuilddeps` parsed all four packages. This workstation lacked `debhelper-compat (= 13)` and the freshly packaged pinned development packages, so full `.deb` builds were not run here.
 
 ## Repository policy
 
