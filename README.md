@@ -26,8 +26,8 @@ Run the Mango Wayland compositor through Anland on Android. This repository is a
 |---|---|---|---|---|---|
 | 1 | [wlroots](wlroots/) | `f2ff3e6c040f474ca71e8a5639997934f7a99142` | `libwlroots-0.20` | `libwlroots-0.20-dev` | `0.20.2-1anland5` |
 | 2 | [SceneFX](scenefx/) | `612c23fa80106ae0968a417ac711f2e4e8b4c9ef` | `libscenefx-0.5-0` | `libscenefx-0.5-dev` | `0.5.0-1anland5` |
-| 3 | [Anland](anland/) | `fe7b844dbde5eb91fac8af8b19f28e54f9cf1f0b` | `libdisplay-producer5` | `libdisplay-producer-dev` | `5.0.0-1anland5` |
-| 4 | [Mango](mango/) | `3ac767b9a707d7e14038be81fd616a95c50df395` | `mango-anland5` | — | `0.17.5-1anland5` |
+| 3 | [Anland](anland/) | `b5ffb976c2e263701be6286a4afeadef3633d92a` | `libdisplay-producer5` | `libdisplay-producer-dev` | `5.0.0-2anland5` |
+| 4 | [Mango](mango/) | `a6b0606a7db5ebd15426aa7e95c6155006f7e675` | `mango-anland5` | — | `0.17.5-2anland5` |
 
 - **wlroots** contains the external swapchain API needed for consumer-owned Anland buffers. A stock distribution wlroots is not a substitute.
 - **SceneFX** must be built against that wlroots ABI.
@@ -36,9 +36,9 @@ Run the Mango Wayland compositor through Anland on Android. This repository is a
 
 SceneFX depends on wlroots. Mango depends on all three libraries. Anland can be built independently; the order above is a straightforward build sequence.
 
-### Pinned snapshot versus local changes
+### Snapshot and ABI compatibility
 
-The table describes the committed submodule snapshot, not uncommitted component changes. The local lifecycle-fix work introduces Anland `5.0.0-2anland5`, Mango `0.17.5-2anland5`, and CPU regression tests, but those changes are **not included by the pinned commits above**. Publishing this README does not publish that product code.
+The pinned Anland and Mango commits include the presentation/input lifecycle fixes and two permanent CPU regression tests. Anland adds writable-target APIs without changing SONAME 5; Mango requires the matching `5.0.0-2anland5` producer revision.
 
 For any checkout, use its actual `debian/changelog` and `debian/control` as the authority for versions and exact dependencies. Do not mix a newer Mango package with the older producer package just because both expose pkg-config version `5.0.0`.
 
@@ -192,22 +192,29 @@ Other volume commands are `up` and `down`; `set` accepts `0–150`. State is sto
 
 Keep these claims separate:
 
-- **Pinned snapshot:** a historical staged source build reported `mango 0.17.5(release)` and a process-liveness smoke. The device report at the top describes Android-side use, not a repeatable automated hardware test.
-- **Local lifecycle-fix work:** private builds and two CPU regression tests passed, including a UBSan run. An isolated daemon exercise observed slot `0 → 1 → 0`, ACK progression, and exact release. These changes and tests are not part of the published pins listed above.
+- **Historical device report:** the setup at the top and an earlier process-liveness smoke describe the previous snapshot, not independent hardware verification of these lifecycle fixes.
+- **Current pinned fixes:** private builds and two CPU regression tests passed, including a UBSan run. An isolated daemon exercise observed slot `0 → 1 → 0`, ACK progression, and exact release. Codex's third independent source review found no blocking issues; review is not runtime proof.
 - **Debian artifacts:** a full four-component `.deb` build has not been verified here. The latest prerequisite check still reported missing compatibility-level-13 tooling and too-old packaged Wayland, libdrm, and pixman development files.
 - **Hardware behavior:** real Wayland wire integration, GPU fence import/export, scanout, and static-desktop visual output are not established by CPU tests. A later isolated whole-Mango launch failed during Zink/EGL renderer initialization; it did not verify a working desktop.
 
-For a source revision that includes the regression suite, run it in that revision's configured Mango build directory:
+After configuring a Mango source build with the Anland backend enabled, run the included regression suite:
 
 ```sh
 meson test -C mango/build --print-errorlogs
 ```
 
-The pinned Mango commit does not contain that suite. A version-print command or successful compilation alone is not graphical verification. Validate the actual target session, input, clipboard, text, reconnect, and buffer/fence lifetimes before treating a new stack as usable.
+A version-print command or successful compilation alone is not graphical verification. Validate the actual target session, input, clipboard, text, reconnect, and buffer/fence lifetimes before treating a new stack as usable.
 
 ## Repository policy and credits
 
 This repository owns the manifest and documentation. Product changes belong in the component repositories. Commit and publish those changes first, then advance the manifest's submodule pointers after rebuilding and verifying the stack. A README-only update must not imply that unpublished component fixes are included.
+
+Project layout:
+
+- `wlroots/`, `scenefx/`, `anland/`, `mango/`: separately maintained source repositories and Debian recipes.
+- `README.md`, `README_zh.md`: English and Chinese build/run guides.
+- [`.omp/skills/anland-v5-porting/SKILL.md`](.omp/skills/anland-v5-porting/SKILL.md): project-local OMP porting skill, available as `skill://anland-v5-porting` in OMP sessions started here.
+- `qq/`: local reference material, ignored by Git and not distributed with this repository.
 
 Component branches:
 

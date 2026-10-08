@@ -1,0 +1,12 @@
+# Local reference archives, patches and binary packages; not release inputs.
+/qq/
+
+# dpkg-buildpackage writes component artifacts to the repository root.
+/*.deb
+/*.ddeb
+/*.build
+/*.buildinfo
+/*.changes
+/*.dsc
+/*.orig.tar.*
+/*.debian.tar.*
