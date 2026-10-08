@@ -2,168 +2,163 @@
 
 [中文](README_zh.md)
 
-This repository pins the four public `anland5` branches that make up the Mango native Anland 5 stack. The components are included as Git submodules so a checkout records the exact commits known to build together.
+Run the Mango Wayland compositor through Anland on Android. This repository is a **downstream integration manifest**: four Git submodules pin the compositor and libraries that belong together. It is not a replacement for upstream Mango or Anland.
 
 ![Mango Anland 5 desktop and fastfetch](Screenshot_2026-10-05-22-44-32-28_048d46691f7e6d293bbd6f982d3d2551.jpg)
 
-## Attribution and scope
+> **Experimental.** Much of the integration was written with AI assistance. Review the component diffs and rebuild locally. The reported working setup is a Lenovo Xiaoxin Pad Pro GT running Debian 13, with touch, mouse, touchpad, speakers, microphone, keyboard, and bidirectional clipboard. This is not a guarantee for other devices or builds.
 
-Thanks to the original [Mango](https://github.com/mangowm/mango) and [Anland](https://github.com/SuperTurtleDev/anland) projects. This repository is a downstream integration snapshot for running Mango through Anland; it is not an upstream replacement for either project.
+## Contents
 
-Most integration code in these `anland5` branches was written with AI assistance. Treat it as experimental integration code: review the diffs, rebuild locally, and keep the component repositories as the source of truth.
+- [What you need to build](#what-you-need-to-build)
+- [Clone the pinned stack](#clone-the-pinned-stack)
+- [Install build dependencies](#install-build-dependencies)
+- [Build Debian packages](#build-debian-packages)
+- [Run a session](#run-a-session)
+- [Verification and known limits](#verification-and-known-limits)
+- [Repository policy and credits](#repository-policy-and-credits)
 
-Reproducibility is not guaranteed. This case has only been reported working on a Lenovo Xiaoxin Pad Pro GT running Debian 13. The reported working devices/features are touch, mouse, touchpad, speakers, microphone, keyboard, and bidirectional clipboard.
+## What you need to build
 
-Recommended reading before building or running:
+**Build all four project components from their pinned sources. Install ordinary tools and system libraries through APT when their versions satisfy the package metadata.**
 
-- [Anland user guide](https://github.com/SuperTurtleDev/anland/blob/legacy/doc/UserManual/anland_guide.md)
-- [Mango documentation](https://mangowm.github.io/docs/installation)
-- [Droidspaces USB Manager notes](https://github.com/KDJCPM/Droidspaces-rootfs-KDE-builder/blob/main/README_english.md#droidspaces-usb-manager)
+| Order | Component | Pinned commit | Debian runtime package | Debian development package | Pinned source version |
+|---|---|---|---|---|---|
+| 1 | [wlroots](wlroots/) | `f2ff3e6c040f474ca71e8a5639997934f7a99142` | `libwlroots-0.20` | `libwlroots-0.20-dev` | `0.20.2-1anland5` |
+| 2 | [SceneFX](scenefx/) | `612c23fa80106ae0968a417ac711f2e4e8b4c9ef` | `libscenefx-0.5-0` | `libscenefx-0.5-dev` | `0.5.0-1anland5` |
+| 3 | [Anland](anland/) | `fe7b844dbde5eb91fac8af8b19f28e54f9cf1f0b` | `libdisplay-producer5` | `libdisplay-producer-dev` | `5.0.0-1anland5` |
+| 4 | [Mango](mango/) | `3ac767b9a707d7e14038be81fd616a95c50df395` | `mango-anland5` | — | `0.17.5-1anland5` |
 
-Install the Mesa driver stack that matches your device GPU before testing. On the tested Qualcomm/Adreno setup, use a Mesa build with a GPU-matched Freedreno OpenGL driver; use Zink only with a compatible Vulkan driver because Zink implements OpenGL on top of Vulkan. Point Mango/Anland at the working render node.
+- **wlroots** contains the external swapchain API needed for consumer-owned Anland buffers. A stock distribution wlroots is not a substitute.
+- **SceneFX** must be built against that wlroots ABI.
+- **Anland** supplies the shared `display-producer` library and public headers.
+- **Mango** must be built with its native Anland backend enabled.
 
-## Required build dependencies
+SceneFX depends on wlroots. Mango depends on all three libraries. Anland can be built independently; the order above is a straightforward build sequence.
 
-Install the build tools and runtime development packages required by all submodules before following the build order below. Package names vary by distribution; the stack needs at least:
+### Pinned snapshot versus local changes
 
-- C compiler, C++ compiler, `pkg-config`, `git`, `meson`, `ninja-build`, `cmake`
-- Wayland, wayland-protocols, xkbcommon, pixman, libdrm, GBM/EGL/GLESv2
-- libinput, udev/libudev, libseat, hwdata, libdisplay-info, libliftoff where available
-- libpcre2-8, libcjson, and pangocairo for Mango
-- PipeWire development files for Anland audio support
-- Xwayland, xcb, xcb-icccm, and xcb-randr development files when building Mango with `-Dxwayland=enabled`
+The table describes the committed submodule snapshot, not uncommitted component changes. The local lifecycle-fix work introduces Anland `5.0.0-2anland5`, Mango `0.17.5-2anland5`, and CPU regression tests, but those changes are **not included by the pinned commits above**. Publishing this README does not publish that product code.
 
-Install the matching Mesa runtime and development packages for your GPU. If the renderer falls back to software unexpectedly, fix the Mesa/DRM render-node setup before treating Mango or Anland as broken.
+For any checkout, use its actual `debian/changelog` and `debian/control` as the authority for versions and exact dependencies. Do not mix a newer Mango package with the older producer package just because both expose pkg-config version `5.0.0`.
 
-
-## Components
-
-| Build order | Submodule | Branch | Pinned commit | Purpose |
-|-------------|-----------|--------|---------------|---------|
-| 1 | [`wlroots`](wlroots/) | `anland5` | `f2ff3e6c040f474ca71e8a5639997934f7a99142` | wlroots 0.20.2 with the external swapchain API Mango uses for Anland consumer-owned buffers, packaged as `libwlroots-0.20`. |
-| 2 | [`scenefx`](scenefx/) | `anland5` | `612c23fa80106ae0968a417ac711f2e4e8b4c9ef` | SceneFX 0.5 built against the wlroots branch above and packaged as `libscenefx-0.5-0`. |
-| 3 | [`anland`](anland/) | `anland5` | `fe7b844dbde5eb91fac8af8b19f28e54f9cf1f0b` | Anland producer library with the legacy facade exported through `display-producer` version 5.0.0. |
-| 4 | [`mango`](mango/) | `anland5` | `3ac767b9a707d7e14038be81fd616a95c50df395` | Mango 0.17.5 with the native Anland backend, session scripts, runtime volume control, and deterministic Debian package versioning. |
-
-Upstream repositories:
-
-- <https://github.com/luochen88/wlroots/tree/anland5>
-- <https://github.com/luochen88/scenefx/tree/anland5>
-- <https://github.com/luochen88/anland/tree/anland5>
-- <https://github.com/luochen88/mango/tree/anland5>
-
-## Clone
-
-Clone with submodules in one step:
+## Clone the pinned stack
 
 ```sh
 git clone --recurse-submodules https://github.com/luochen88/mango-anland5.git
 cd mango-anland5
 ```
 
-If the repository was cloned without submodules:
+For an existing clone without populated submodules:
 
 ```sh
 git submodule update --init --recursive
 ```
 
-To move every submodule to the latest published `anland5` branch tip instead of the pinned commits:
+Keep the recorded commits for a snapshot build. Updating to branch tips creates a different stack; it needs a fresh build and verification before its submodule pointers are published.
+
+## Install build dependencies
+
+Use a clean **Debian 13 build container or chroot**, preferably matching the target architecture. The reported target is `arm64`; these instructions assume native compilation, not cross-compilation. Keep the build environment separate from a running desktop.
+
+### Tools and ordinary development packages
+
+The current Debian recipes use Meson/Ninja for wlroots, SceneFX, and Mango, and CMake/Ninja for Anland. They enable GLES2 rendering, Xwayland, libliftoff, and XCB error support.
 
 ```sh
-git submodule update --remote --merge
+sudo apt update
+sudo apt install \
+  build-essential git dpkg-dev debhelper meson ninja-build cmake pkgconf \
+  libwayland-dev libwayland-bin wayland-protocols \
+  libdrm-dev libxkbcommon-dev libpixman-1-dev \
+  libegl-dev libgbm-dev libgles-dev \
+  libudev-dev libseat-dev libdisplay-info-dev libliftoff-dev \
+  libinput-dev hwdata libpipewire-0.3-dev \
+  libpcre2-dev libcjson-dev libpango1.0-dev \
+  xwayland libxcb1-dev libxcb-dri3-dev libxcb-present-dev \
+  libxcb-render0-dev libxcb-render-util0-dev libxcb-shm0-dev \
+  libxcb-xfixes0-dev libxcb-xinput-dev libxcb-composite0-dev \
+  libxcb-ewmh-dev libxcb-icccm4-dev libxcb-res0-dev \
+  libxcb-errors-dev libxcb-randr0-dev
 ```
 
-Stage and commit the updated submodule pointers afterward if you want to make a new tested stack snapshot:
+This installs package names, **not necessarily sufficiently new versions**. `debhelper` must provide compatibility level 13. Check the following version requirements before building.
+
+### Debian 13 version gaps
+
+The pinned recipes require newer versions of several libraries than Debian 13 stable provides. The versions below were observed in the build workstation's configured stable/backports repositories; availability can change.
+
+| Dependency | Required by the recipes | Observed Debian 13 stable | Observed backports | Action |
+|---|---|---|---|---|
+| Meson | ≥ 1.3 | 1.7.0 | Not needed | Use the system package |
+| wayland-protocols | ≥ 1.47 | 1.44 | 1.47 | Use a compatible backport |
+| Wayland development files | ≥ 1.24 | 1.23.1 | No newer candidate observed | Obtain or build compatible Debian packages |
+| libdrm development files | ≥ 2.4.129 | 2.4.124 | No newer candidate observed | Obtain or build compatible Debian packages |
+| xkbcommon development files | ≥ 1.8 | 1.7.0 | 1.13.1 | Use a compatible backport |
+| pixman development files | ≥ 0.46 | 0.44.0 | No newer candidate observed | Obtain or build compatible Debian packages |
+| libinput development files | ≥ 1.27.1 | 1.28.1 | Not needed | Use the system package |
+
+If `trixie-backports` is already configured and offers these versions:
 
 ```sh
-git add wlroots scenefx anland mango
-git commit -m "chore: update Mango Anland 5 stack pins"
+sudo apt install -t trixie-backports wayland-protocols libxkbcommon-dev
 ```
 
-## Build and install
+For remaining gaps, prefer trusted Debian 13-compatible binary packages or rebuild/backport the relevant source packages inside the build environment. Install matching runtime and development packages together. Avoid upgrading the entire system to sid or using untracked `/usr/local` libraries to bypass Debian dependency checks.
 
-Build and install in dependency order. The Debian packaging uses `/usr` and the host multiarch libdir; manual local installs may use `/usr/local` if `PKG_CONFIG_PATH` and `LD_LIBRARY_PATH` point at the same prefix for every component.
-
-### Debian package metadata
-
-Each submodule contains Debian packaging for the pinned ABI:
-
-| Submodule | Source package | Runtime package | Development package |
-|-----------|----------------|-----------------|---------------------|
-| `wlroots` | `wlroots` | `libwlroots-0.20` | `libwlroots-0.20-dev` |
-| `scenefx` | `scenefx` | `libscenefx-0.5-0` | `libscenefx-0.5-dev` |
-| `anland` | `anland` | `libdisplay-producer5` | `libdisplay-producer-dev` |
-| `mango` | `mango` | `mango-anland5` | — |
-
-Build packages in the same order. `scenefx` build-depends on the pinned `libwlroots-0.20-dev`; `mango-anland5` build-depends on the pinned wlroots, SceneFX, and Anland development packages.
-
-### 1. wlroots
+Inspect your own candidates and check the first component:
 
 ```sh
-arch=$(dpkg-architecture -qDEB_HOST_MULTIARCH)
-meson setup wlroots/build --prefix=/usr --libdir="lib/$arch" \
-  -Dbackends=drm,libinput,x11 \
-  -Drenderers=gles2 \
-  -Dallocators=gbm,udmabuf \
-  -Dsession=enabled \
-  -Dxwayland=enabled \
-  -Dexamples=false \
-  -Dcolor-management=disabled \
-  -Dlibliftoff=enabled \
-  -Dxcb-errors=enabled
-meson compile -C wlroots/build
-sudo meson install -C wlroots/build
+apt-cache policy meson wayland-protocols libwayland-dev libdrm-dev \
+  libxkbcommon-dev libpixman-1-dev libinput-dev
+(cd wlroots && dpkg-checkbuilddeps)
 ```
 
-### 2. SceneFX
+**Stop if dependency checks fail.** Do not use `dpkg-buildpackage -d` to suppress missing or too-old dependencies. A successful private-prefix compile does not prove that Debian packaging prerequisites are met.
+
+## Build Debian packages
+
+Each submodule contains its own `debian/` packaging. There is no single root-level package build. Run the following from the repository root **inside the prepared build environment**.
+
+Build each component, then install its generated runtime and development packages into that environment before building the next component:
 
 ```sh
-arch=$(dpkg-architecture -qDEB_HOST_MULTIARCH)
-meson setup scenefx/build --prefix=/usr --libdir="lib/$arch" \
-  -Dexamples=false \
-  -Drenderers=gles2 \
-  -Dtracy_enable=false \
-  -Dcolor-management=disabled
-meson compile -C scenefx/build
-sudo meson install -C scenefx/build
+# 1. wlroots
+(cd wlroots && dpkg-checkbuilddeps && dpkg-buildpackage -b -us -uc)
+sudo apt install ./libwlroots-0.20_*.deb ./libwlroots-0.20-dev_*.deb
+
+# 2. SceneFX
+(cd scenefx && dpkg-checkbuilddeps && dpkg-buildpackage -b -us -uc)
+sudo apt install ./libscenefx-0.5-0_*.deb ./libscenefx-0.5-dev_*.deb
+
+# 3. Anland producer
+(cd anland && dpkg-checkbuilddeps && dpkg-buildpackage -b -us -uc)
+sudo apt install ./libdisplay-producer5_*.deb ./libdisplay-producer-dev_*.deb
+
+# 4. Mango
+(cd mango && dpkg-checkbuilddeps && dpkg-buildpackage -b -us -uc)
 ```
 
-### 3. Anland producer library
+`dpkg-buildpackage` writes artifacts to the parent directory, so the `.deb` files appear at the repository root. These globs assume that directory contains only the intended package versions and target architecture; otherwise pass the exact filenames. Stop after any failed build rather than continuing with old artifacts.
 
-```sh
-arch=$(dpkg-architecture -qDEB_HOST_MULTIARCH)
-cmake -S anland -B anland/build -G Ninja \
-  -DCMAKE_BUILD_TYPE=Release \
-  -DCMAKE_INSTALL_PREFIX=/usr \
-  -DCMAKE_INSTALL_LIBDIR="lib/$arch"
-cmake --build anland/build --parallel
-sudo cmake --install anland/build
-pkg-config --modversion display-producer
-```
+The recipes select `/usr` and the Debian multiarch library directory. **Do not run `sudo meson install` or `sudo cmake --install` as part of this workflow**: those commands install files directly and are not a substitute for building managed Debian packages.
 
-Expected `pkg-config --modversion display-producer` output:
+On the target machine, install the four runtime packages together using their exact filenames. A runtime-only target does not need the three `-dev` packages, compilers, or build tools. APT resolves their ordinary runtime dependencies. The Mango package contains the launcher, user service, session files, configuration, and volume helper.
 
-```text
-5.0.0
-```
+### What these packages do not supply
 
-### 4. Mango
+- A complete Android Anland installation: the Debian Anland recipe packages the **producer library and headers**, not the daemon or Android consumer.
+- A device-specific GPU driver stack. Install Mesa appropriate for the GPU and ensure a working DRM render node.
+- A desktop bar: `mangobar` is recommended, not a required build dependency. The session examples below assume it is installed; otherwise choose your own startup command.
+- A running audio/session environment. PipeWire and the relevant user services still need to be configured for the target.
 
-```sh
-arch=$(dpkg-architecture -qDEB_HOST_MULTIARCH)
-meson setup mango/build --prefix=/usr --libdir="lib/$arch" \
-  -Danland=enabled \
-  -Dxwayland=enabled \
-  -Dversion_suffix=release
-meson compile -C mango/build
-sudo meson install -C mango/build
-```
+## Run a session
 
-## Run Mango on Anland
+Before starting Mango, ensure the Android consumer and Anland daemon are ready, the daemon socket is available, and the chosen render node is accessible. On the reported Qualcomm/Adreno setup, use GPU-matched Mesa/Freedreno OpenGL. Zink requires a compatible Vulkan driver; it is not a universal fallback.
 
-The Anland backend is selected by `ANLAND_SOCKET`. The default session scripts expect the daemon socket at `/run/display.sock` and the render node at `/dev/dri/renderD128`.
+> Starting another producer can replace the producer already connected to the daemon. Do not run smoke tests or a second Mango instance against an active production socket.
 
-Manual session:
+### Manual startup
 
 ```sh
 export ANLAND_SOCKET=/run/display.sock
@@ -172,68 +167,59 @@ export XDG_RUNTIME_DIR=/run/user/$(id -u)
 exec mango -s 'mangobar'
 ```
 
-Systemd user session after installation:
+Use the real session runtime directory; it must exist and belong to the user. Adjust the socket and render node for your environment. `ANLAND_SOCKET` opts into the Anland backend; without it Mango uses its normal backend selection.
+
+### Installed user service
+
+Choose the service instead of starting a second manual instance:
 
 ```sh
 systemctl --user enable --now mango-anland.service
-mango-anland {start|stop|restart|kill|status}
+mango-anland status
 ```
 
-Runtime audio volume state is controlled by:
+The launcher supports `start`, `stop`, `restart`, `kill`, and `status`. Volume control is provided by:
 
 ```sh
-anland-volume.sh {get|up|down|toggle|set <0-150>}
+anland-volume.sh get
+anland-volume.sh set 80
+anland-volume.sh toggle
 ```
 
-The state file is `$XDG_RUNTIME_DIR/anland-volume-state`; default state is `100 0`.
+Other volume commands are `up` and `down`; `set` accepts `0–150`. State is stored in `$XDG_RUNTIME_DIR/anland-volume-state`, initially `100 0`.
 
-## Verification used for this snapshot
+## Verification and known limits
 
-The pinned commits were checked locally with a clean staged install under `/tmp/anland-stack-stage`:
+Keep these claims separate:
+
+- **Pinned snapshot:** a historical staged source build reported `mango 0.17.5(release)` and a process-liveness smoke. The device report at the top describes Android-side use, not a repeatable automated hardware test.
+- **Local lifecycle-fix work:** private builds and two CPU regression tests passed, including a UBSan run. An isolated daemon exercise observed slot `0 → 1 → 0`, ACK progression, and exact release. These changes and tests are not part of the published pins listed above.
+- **Debian artifacts:** a full four-component `.deb` build has not been verified here. The latest prerequisite check still reported missing compatibility-level-13 tooling and too-old packaged Wayland, libdrm, and pixman development files.
+- **Hardware behavior:** real Wayland wire integration, GPU fence import/export, scanout, and static-desktop visual output are not established by CPU tests. A later isolated whole-Mango launch failed during Zink/EGL renderer initialization; it did not verify a working desktop.
+
+For a source revision that includes the regression suite, run it in that revision's configured Mango build directory:
 
 ```sh
-meson setup /tmp/stage-wlroots wlroots --prefix=/usr --libdir=lib/$(dpkg-architecture -qDEB_HOST_MULTIARCH) -Dbackends=drm,libinput,x11 -Drenderers=gles2 -Dallocators=gbm,udmabuf -Dsession=enabled -Dxwayland=enabled -Dexamples=false -Dcolor-management=disabled -Dlibliftoff=enabled -Dxcb-errors=enabled
-meson compile -C /tmp/stage-wlroots
-DESTDIR=/tmp/anland-stack-stage meson install -C /tmp/stage-wlroots
-meson setup /tmp/stage-scenefx scenefx --prefix=/usr --libdir=lib/$(dpkg-architecture -qDEB_HOST_MULTIARCH) -Dexamples=false -Drenderers=gles2 -Dtracy_enable=false -Dcolor-management=disabled
-meson compile -C /tmp/stage-scenefx
-DESTDIR=/tmp/anland-stack-stage meson install -C /tmp/stage-scenefx
-cmake -S anland -B /tmp/stage-anland -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr -DCMAKE_INSTALL_LIBDIR=lib/$(dpkg-architecture -qDEB_HOST_MULTIARCH)
-cmake --build /tmp/stage-anland --parallel "$(nproc)"
-DESTDIR=/tmp/anland-stack-stage cmake --install /tmp/stage-anland
-meson setup /tmp/stage-mango mango --prefix=/usr --libdir=lib/$(dpkg-architecture -qDEB_HOST_MULTIARCH) -Danland=enabled -Dxwayland=enabled -Dversion_suffix=release
-meson compile -C /tmp/stage-mango
-DESTDIR=/tmp/anland-stack-stage meson install -C /tmp/stage-mango
+meson test -C mango/build --print-errorlogs
 ```
 
-Additional smoke checks:
+The pinned Mango commit does not contain that suite. A version-print command or successful compilation alone is not graphical verification. Validate the actual target session, input, clipboard, text, reconnect, and buffer/fence lifetimes before treating a new stack as usable.
 
-```sh
-(cd wlroots && git diff --check)
-(cd scenefx && git diff --check)
-(cd anland && git diff --check)
-(cd mango && git diff --check)
-sh -n mango/scripts/mango-anland mango/scripts/anland-volume.sh
-```
+## Repository policy and credits
 
-`anland-volume.sh` with a temporary `XDG_RUNTIME_DIR` returned:
+This repository owns the manifest and documentation. Product changes belong in the component repositories. Commit and publish those changes first, then advance the manifest's submodule pointers after rebuilding and verifying the stack. A README-only update must not imply that unpublished component fixes are included.
 
-```text
-get -> 100 0
-set 80 -> 80 0
-toggle -> 80 1
-```
+Component branches:
 
-`/tmp/anland-stack-stage/usr/bin/mango -v` returned:
+- [wlroots — anland5](https://github.com/luochen88/wlroots/tree/anland5)
+- [SceneFX — anland5](https://github.com/luochen88/scenefx/tree/anland5)
+- [Anland — anland5](https://github.com/luochen88/anland/tree/anland5)
+- [Mango — anland5](https://github.com/luochen88/mango/tree/anland5)
 
-```text
-mango 0.17.5(release)
-```
+Thanks to the original [Mango](https://github.com/mangowm/mango) and [Anland](https://github.com/SuperTurtleDev/anland) projects.
 
-A runtime smoke with `/run/display.sock` and `/dev/dri/renderD128` present started Mango with the service-equivalent environment and kept it alive until timeout. The local smoke log contained only an already-used Xwayland display socket warning and missing user-bus messages. The Lenovo Xiaoxin Pad Pro GT report above says Android-side visual output, touch, mouse, touchpad, speakers, microphone, keyboard, and bidirectional clipboard worked on Debian 13; those Android-side behaviors were not independently re-tested as part of this repository snapshot.
+Further reading:
 
-`dpkg-checkbuilddeps` parsed all four packages. This workstation lacked `debhelper-compat (= 13)` and the freshly packaged pinned development packages, so full `.deb` builds were not run here.
-
-## Repository policy
-
-This repository is only the stack manifest and documentation. Product code changes live in the component repositories above. Update this repository by advancing submodule pointers after rebuilding and re-smoking the complete stack.
+- [Anland user guide](https://github.com/SuperTurtleDev/anland/blob/legacy/doc/UserManual/anland_guide.md)
+- [Mango installation documentation](https://mangowm.github.io/docs/installation)
+- [Droidspaces USB Manager notes](https://github.com/KDJCPM/Droidspaces-rootfs-KDE-builder/blob/main/README_english.md#droidspaces-usb-manager)
